@@ -101,8 +101,9 @@ object OverlayEngine {
         val resolver = context.contentResolver
 
         val boundsOpts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, boundsOpts) }
+        val boundsStream = resolver.openInputStream(uri)
             ?: throw IllegalStateException("خواندن تصویر ورودی ممکن نشد.")
+        boundsStream.use { BitmapFactory.decodeStream(it, null, boundsOpts) }
         val srcW = boundsOpts.outWidth
         val srcH = boundsOpts.outHeight
         if (srcW <= 0 || srcH <= 0) throw IllegalStateException("فرمت تصویر پشتیبانی نمی‌شود.")

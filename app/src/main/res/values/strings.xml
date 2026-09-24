@@ -7,6 +7,7 @@
     <string name="choose_zoom">لطفاً یکی از زوم‌ها را انتخاب نمایید:</string>
     <string name="back">🔙 بازگشت</string>
     <string name="pick_image">انتخاب تصویر از گالری</string>
+    <string name="pick_file">انتخاب تصویر به‌صورت فایل (کیفیت اصلی)</string>
     <string name="processing">در حال پردازش تصویر، لطفاً صبر کنید…</string>
     <string name="save_share">ذخیره / اشتراک‌گذاری</string>
     <string name="new_image">پردازش یک تصویر دیگر برای همین زوم</string>

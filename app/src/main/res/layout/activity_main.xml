@@ -60,9 +60,18 @@
                 android:id="@+id/pickImageButton"
                 android:layout_width="match_parent"
                 android:layout_height="56dp"
-                android:layout_marginBottom="12dp"
+                android:layout_marginBottom="10dp"
                 android:backgroundTint="@color/brand_green"
                 android:text="@string/pick_image"
+                android:textColor="@color/white" />
+
+            <Button
+                android:id="@+id/pickFileButton"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:layout_marginBottom="12dp"
+                android:backgroundTint="@color/brand_green"
+                android:text="@string/pick_file"
                 android:textColor="@color/white" />
 
             <ProgressBar

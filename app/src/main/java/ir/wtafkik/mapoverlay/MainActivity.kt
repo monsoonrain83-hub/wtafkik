@@ -31,6 +31,11 @@ class MainActivity : AppCompatActivity() {
             if (uri != null) startProcessing(uri) else Unit
         }
 
+    private val pickFileLauncher =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+            if (uri != null) startProcessing(uri) else Unit
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -40,6 +45,9 @@ class MainActivity : AppCompatActivity() {
 
         binding.pickImageButton.setOnClickListener {
             pickImageLauncher.launch("image/*")
+        }
+        binding.pickFileButton.setOnClickListener {
+            pickFileLauncher.launch(arrayOf("image/*"))
         }
         binding.backFromZoomButton.setOnClickListener { showZoomMenuFor(currentGroupTitle) }
         binding.backFromResultButton.setOnClickListener { showZoomMenuFor(currentGroupTitle) }
@@ -96,6 +104,7 @@ class MainActivity : AppCompatActivity() {
         binding.progressBar.visibility = View.GONE
         binding.processingText.visibility = View.GONE
         binding.pickImageButton.visibility = View.VISIBLE
+        binding.pickFileButton.visibility = View.VISIBLE
         binding.backFromZoomButton.visibility = View.VISIBLE
         showOnly(binding.processingContainer)
     }
@@ -103,6 +112,7 @@ class MainActivity : AppCompatActivity() {
     private fun startProcessing(uri: Uri) {
         val zoom = selectedZoom ?: return
         binding.pickImageButton.visibility = View.GONE
+        binding.pickFileButton.visibility = View.GONE
         binding.backFromZoomButton.visibility = View.GONE
         binding.progressBar.visibility = View.VISIBLE
         binding.processingText.visibility = View.VISIBLE
