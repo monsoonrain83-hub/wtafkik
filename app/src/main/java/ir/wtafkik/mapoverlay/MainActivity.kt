@@ -291,19 +291,37 @@ class MainActivity : AppCompatActivity() {
         binding.zoomContainer.visibility = if (view === binding.zoomContainer) View.VISIBLE else View.GONE
         binding.processingContainer.visibility = if (view === binding.processingContainer) View.VISIBLE else View.GONE
         binding.resultContainer.visibility = if (view === binding.resultContainer) View.VISIBLE else View.GONE
-        applyWatermarks(showHome = view === binding.siteContainer)
+        updateBranding(view)
     }
 
-    private fun applyWatermarks(showHome: Boolean) {
+    /**
+     * لوگوها و نمونه‌کارها همگی داخل جریان صفحه هستند (نه لایه‌ی پشتی)، پس روی دکمه/متن نمی‌افتند.
+     * صفحه‌ی اصلی: هر سه لوگو + هر دو نمونه‌کار (کلاژ) + دکمه‌ی «درباره ما».
+     * صفحات ودربل / weather.us: فقط لوگوی همان سایت + آسمان استهبان + نمونه‌کار همان سایت
+     * (در صفحه‌ی نتیجه نمونه‌کار نمایش داده نمی‌شود تا خروجی کاربر شلوغ نشود).
+     * هیچ‌کدام روی تصویر خروجی نقشه نمی‌افتند (OverlayEngine به این منابع دسترسی ندارد).
+     */
+    private fun updateBranding(current: LinearLayout) {
+        val isHome = current === binding.siteContainer
         val group = currentGroup
-        val showWb = showHome || group === MenuData.weatherbell
-        val showWu = showHome || group === MenuData.weatherus
-        binding.watermarkWb.visibility = if (showWb) View.VISIBLE else View.GONE
-        binding.watermarkWu.visibility = if (showWu) View.VISIBLE else View.GONE
-        // لوگوی آسمان استهبان فقط وقتی دیده می‌شود که لوگوی weather.us و/یا weatherbell دیده شود.
-        // این لوگوها فقط پس‌زمینه‌ی صفحات اپ هستند و هیچ‌جا روی تصویر خروجی نقشه نمی‌افتند
-        // (OverlayEngine اصلاً به آن‌ها دسترسی ندارد).
-        binding.watermarkAseman.visibility = if (showWb || showWu) View.VISIBLE else View.GONE
+        val showWb = isHome || group === MenuData.weatherbell
+        val showWu = isHome || group === MenuData.weatherus
+
+        binding.logoWb.visibility = if (showWb) View.VISIBLE else View.GONE
+        binding.logoWu.visibility = if (showWu) View.VISIBLE else View.GONE
+        binding.logoAseman.visibility = if (showWb || showWu) View.VISIBLE else View.GONE
+
+        val showSamples = current !== binding.resultContainer && (showWb || showWu)
+        binding.sampleSection.visibility = if (showSamples) View.VISIBLE else View.GONE
+        binding.sampleTitle.visibility = if (isHome) View.VISIBLE else View.GONE
+        binding.sampleWb.visibility = if (showSamples && showWb) View.VISIBLE else View.GONE
+        binding.sampleWu.visibility = if (showSamples && showWu) View.VISIBLE else View.GONE
+        // وقتی فقط یک نمونه نمایش داده می‌شود، وسط‌چین و هم‌اندازه‌ی نیمِ کلاژ بماند
+        val single = !(showWb && showWu)
+        binding.spacerStart.visibility = if (single) View.VISIBLE else View.GONE
+        binding.spacerEnd.visibility = if (single) View.VISIBLE else View.GONE
+
+        binding.infoButton.visibility = if (isHome) View.VISIBLE else View.GONE
     }
 
     private fun makeSectionTitle(text: String): TextView {

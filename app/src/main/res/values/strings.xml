@@ -25,4 +25,6 @@
     <string name="saved_to_gallery">با موفقیت در گالری ذخیره شد.</string>
     <string name="save_failed">ذخیره در گالری ناموفق بود.</string>
     <string name="permission_needed">برای ذخیره در گالری، دسترسی لازم است.</string>
+    <string name="about_us">درباره ما</string>
+    <string name="sample_title">نمونه‌کارهای اپلیکیشن</string>
 </resources>

@@ -21,13 +21,30 @@ android {
         noCompress += "png"
     }
 
+    // امضای ریلیز: اگر کلید اختصاصی از طریق GitHub Secrets داده شود از آن استفاده می‌شود،
+    // وگرنه (مثلاً بیلد محلی) به کلید debug برمی‌گردد تا بیلد خراب نشود.
+    val releaseKeystore = System.getenv("KEYSTORE_FILE")?.let { File(it) }?.takeIf { it.exists() }
+    signingConfigs {
+        if (releaseKeystore != null) {
+            create("release") {
+                storeFile = releaseKeystore
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             // مبهم‌سازی کد (R8) و حذف منابع بلااستفاده برای سخت‌تر شدن مهندسی معکوس
             isMinifyEnabled = true
             isShrinkResources = true
-            // برای اینکه APK ریلیز مستقیم قابل نصب باشد (بعداً با کلید اختصاصی خودتان جایگزین کنید)
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (releaseKeystore != null) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
