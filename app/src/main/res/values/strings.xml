@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">تفکیک نقشه‌های هواشناسی</string>
+    <string name="choose_site">لطفاً یکی از گزینه‌های زیر را انتخاب نمایید:</string>
+    <string name="site_wb">🗺️ ودربل (weatherbell.com)</string>
+    <string name="site_wu">🗺️ کچلمن (weather.us)</string>
+    <string name="choose_zoom">لطفاً یکی از زوم‌ها را انتخاب نمایید:</string>
+    <string name="back">🔙 بازگشت</string>
+    <string name="pick_image">انتخاب تصویر از گالری</string>
+    <string name="processing">در حال پردازش تصویر، لطفاً صبر کنید…</string>
+    <string name="save_share">ذخیره / اشتراک‌گذاری</string>
+    <string name="new_image">پردازش یک تصویر دیگر برای همین زوم</string>
+    <string name="error_generic">پردازش با خطا مواجه شد. لطفاً دوباره تلاش کنید.</string>
+    <string name="result_dims">ابعاد خروجی: %1$d × %2$d پیکسل</string>
+    <string name="scaled_down_notice">توجه: برای جلوگیری از کمبود حافظه‌ی گوشی شما، ابعاد خروجی کمی کوچک‌تر از اندازه‌ی اصلی شد.</string>
+</resources>
