@@ -1,20 +1,30 @@
 package ir.wtafkik.mapoverlay
 
+import android.Manifest
+import android.content.ContentValues
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.provider.MediaStore
 import android.view.View
-import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
+import com.google.android.material.button.MaterialButton
 import ir.wtafkik.mapoverlay.databinding.ActivityMainBinding
+import ir.wtafkik.mapoverlay.databinding.DialogInfoBinding
+import ir.wtafkik.mapoverlay.databinding.DialogShareBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -26,38 +36,56 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private var selectedZoom: ZoomItem? = null
+    private var currentGroup: SiteGroup? = null
     private var lastResult: OverlayEngine.Result? = null
+    private var pendingSaveFile: File? = null
 
     private val pickImageLauncher =
         registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-            if (uri != null) startProcessing(uri) else Unit
+            if (uri != null) startProcessing(uri)
         }
 
     private val pickFileLauncher =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
-            if (uri != null) startProcessing(uri) else Unit
+            if (uri != null) startProcessing(uri)
+        }
+
+    private val requestStoragePermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            val file = pendingSaveFile
+            pendingSaveFile = null
+            if (granted && file != null) {
+                saveLegacy(file)
+            } else {
+                Toast.makeText(this, getString(R.string.permission_needed), Toast.LENGTH_LONG).show()
+            }
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
         buildSiteMenu()
 
-        binding.pickImageButton.setOnClickListener {
-            pickImageLauncher.launch("image/*")
+        binding.splashOverlay.setOnClickListener {
+            binding.splashOverlay.animate()
+                .alpha(0f)
+                .setDuration(300)
+                .withEndAction { binding.splashOverlay.visibility = View.GONE }
+                .start()
         }
-        binding.pickFileButton.setOnClickListener {
-            pickFileLauncher.launch(arrayOf("image/*"))
-        }
-        binding.backFromZoomButton.setOnClickListener { showZoomMenuFor(currentGroupTitle) }
-        binding.backFromResultButton.setOnClickListener { showZoomMenuFor(currentGroupTitle) }
-        binding.newImageButton.setOnClickListener { showProcessingScreen() }
-        binding.saveShareButton.setOnClickListener { shareResult() }
-    }
 
-    private var currentGroupTitle: String = ""
+        binding.infoButton.setOnClickListener { showInfoDialog() }
+
+        binding.pickImageButton.setOnClickListener { pickImageLauncher.launch("image/*") }
+        binding.pickFileButton.setOnClickListener { pickFileLauncher.launch(arrayOf("image/*")) }
+        binding.backFromZoomButton.setOnClickListener { showZoomMenu() }
+        binding.backFromResultButton.setOnClickListener { showZoomMenu() }
+        binding.newImageButton.setOnClickListener { showProcessingScreen() }
+        binding.saveShareButton.setOnClickListener { openShareOptions() }
+    }
 
     // ---------------- مرحله ۱: انتخاب سایت ----------------
     private fun buildSiteMenu() {
@@ -72,16 +100,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ---------------- مرحله ۲: انتخاب زوم ----------------
-    private var currentGroup: SiteGroup? = null
-
     private fun openGroup(group: SiteGroup) {
         currentGroup = group
-        currentGroupTitle = group.title
         buildZoomMenu(group)
         showOnly(binding.zoomContainer)
     }
 
-    private fun showZoomMenuFor(title: String) {
+    private fun showZoomMenu() {
         val group = currentGroup ?: MenuData.weatherbell
         buildZoomMenu(group)
         showOnly(binding.zoomContainer)
@@ -96,8 +121,7 @@ class MainActivity : AppCompatActivity() {
                 showProcessingScreen()
             })
         }
-        val backBtn = makeMenuButton(getString(R.string.back)) { buildSiteMenu() }
-        binding.zoomContainer.addView(backBtn)
+        binding.zoomContainer.addView(makeMenuButton(getString(R.string.back)) { buildSiteMenu() })
     }
 
     // ---------------- مرحله ۳: انتخاب تصویر / پردازش ----------------
@@ -133,7 +157,7 @@ class MainActivity : AppCompatActivity() {
                 showResult(result, preview)
             } catch (e: Throwable) {
                 val details = android.util.Log.getStackTraceString(e)
-                androidx.appcompat.app.AlertDialog.Builder(this@MainActivity)
+                AlertDialog.Builder(this@MainActivity)
                     .setTitle("جزئیات خطا (اسکرین‌شات بگیرید و بفرستید)")
                     .setMessage(details)
                     .setPositiveButton("باشه", null)
@@ -164,19 +188,101 @@ class MainActivity : AppCompatActivity() {
             ?: throw IllegalStateException("ساخت پیش‌نمایش تصویر ممکن نشد.")
     }
 
-    private fun shareResult() {
+    // ---------------- ذخیره / اشتراک‌گذاری ----------------
+    private fun openShareOptions() {
         val result = lastResult ?: return
-        val uri = FileProvider.getUriForFile(
-            this,
-            "ir.wtafkik.mapoverlay.fileprovider",
-            result.outputFile
-        )
+        val dialogBinding = DialogShareBinding.inflate(layoutInflater)
+        val dialog = AlertDialog.Builder(this)
+            .setView(dialogBinding.root)
+            .create()
+        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+
+        dialogBinding.optionSaveGallery.setOnClickListener {
+            dialog.dismiss()
+            saveToGallery(result.outputFile)
+        }
+        dialogBinding.optionShareFile.setOnClickListener {
+            dialog.dismiss()
+            shareFile(result.outputFile, asGenericFile = true)
+        }
+        dialogBinding.optionSharePhoto.setOnClickListener {
+            dialog.dismiss()
+            shareFile(result.outputFile, asGenericFile = false)
+        }
+        dialog.show()
+    }
+
+    private fun shareFile(file: File, asGenericFile: Boolean) {
+        val uri = FileProvider.getUriForFile(this, "ir.wtafkik.mapoverlay.fileprovider", file)
         val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "image/jpeg"
+            type = if (asGenericFile) "application/octet-stream" else "image/jpeg"
             putExtra(Intent.EXTRA_STREAM, uri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         startActivity(Intent.createChooser(intent, getString(R.string.save_share)))
+    }
+
+    private fun saveToGallery(file: File) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            saveViaMediaStore(file)
+        } else if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            == PackageManager.PERMISSION_GRANTED
+        ) {
+            saveLegacy(file)
+        } else {
+            pendingSaveFile = file
+            requestStoragePermission.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        }
+    }
+
+    private fun saveViaMediaStore(file: File) {
+        try {
+            val values = ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, file.name)
+                put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/MapOverlay")
+            }
+            val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                ?: throw IllegalStateException("ساخت رکورد گالری ناموفق بود.")
+            val out = contentResolver.openOutputStream(uri)
+                ?: throw IllegalStateException("نوشتن فایل در گالری ناموفق بود.")
+            out.use { stream -> file.inputStream().use { it.copyTo(stream) } }
+            Toast.makeText(this, getString(R.string.saved_to_gallery), Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            Toast.makeText(this, getString(R.string.save_failed), Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun saveLegacy(file: File) {
+        try {
+            @Suppress("DEPRECATION")
+            val picturesDir = File(
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
+                "MapOverlay"
+            )
+            picturesDir.mkdirs()
+            val dest = File(picturesDir, file.name)
+            file.copyTo(dest, overwrite = true)
+            android.media.MediaScannerConnection.scanFile(
+                this, arrayOf(dest.absolutePath), arrayOf("image/jpeg"), null
+            )
+            Toast.makeText(this, getString(R.string.saved_to_gallery), Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            Toast.makeText(this, getString(R.string.save_failed), Toast.LENGTH_LONG).show()
+        }
+    }
+
+    // ---------------- دیالوگ اطلاعات سازنده ----------------
+    private fun showInfoDialog() {
+        val dialogBinding = DialogInfoBinding.inflate(layoutInflater)
+        val dialog = AlertDialog.Builder(this)
+            .setView(dialogBinding.root)
+            .create()
+        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        dialogBinding.openInstagramButton.setOnClickListener {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://instagram.com/asemanestahban")))
+        }
+        dialog.show()
     }
 
     // ---------------- ابزارهای رابط کاربری ----------------
@@ -185,26 +291,39 @@ class MainActivity : AppCompatActivity() {
         binding.zoomContainer.visibility = if (view === binding.zoomContainer) View.VISIBLE else View.GONE
         binding.processingContainer.visibility = if (view === binding.processingContainer) View.VISIBLE else View.GONE
         binding.resultContainer.visibility = if (view === binding.resultContainer) View.VISIBLE else View.GONE
+        applyWatermarks(showHome = view === binding.siteContainer)
+    }
+
+    private fun applyWatermarks(showHome: Boolean) {
+        val group = currentGroup
+        val showWb = showHome || group === MenuData.weatherbell
+        val showWu = showHome || group === MenuData.weatherus
+        binding.watermarkWb.visibility = if (showWb) View.VISIBLE else View.GONE
+        binding.watermarkWu.visibility = if (showWu) View.VISIBLE else View.GONE
+        // لوگوی آسمان استهبان فقط وقتی دیده می‌شود که لوگوی weather.us و/یا weatherbell دیده شود.
+        // این لوگوها فقط پس‌زمینه‌ی صفحات اپ هستند و هیچ‌جا روی تصویر خروجی نقشه نمی‌افتند
+        // (OverlayEngine اصلاً به آن‌ها دسترسی ندارد).
+        binding.watermarkAseman.visibility = if (showWb || showWu) View.VISIBLE else View.GONE
     }
 
     private fun makeSectionTitle(text: String): TextView {
         return TextView(this).apply {
             this.text = text
             textSize = 15f
-            setTextColor(getColor(R.color.brand_green_dark))
-            setPadding(0, 0, 0, 24)
+            setTextColor(getColor(R.color.text_primary))
+            setPadding(0, 0, 0, 20)
         }
     }
 
-    private fun makeMenuButton(text: String, onClick: () -> Unit): Button {
-        return Button(this).apply {
+    private fun makeMenuButton(text: String, onClick: () -> Unit): MaterialButton {
+        return MaterialButton(this).apply {
             this.text = text
-            setTextColor(getColor(R.color.white))
-            backgroundTintList = getColorStateList(R.color.brand_green)
+            isAllCaps = false
+            minHeight = (54 * resources.displayMetrics.density).toInt()
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { bottomMargin = 20 }
+            ).apply { bottomMargin = (14 * resources.displayMetrics.density).toInt() }
             setOnClickListener { onClick() }
         }
     }

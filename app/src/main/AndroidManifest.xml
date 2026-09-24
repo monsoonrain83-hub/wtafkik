@@ -1,7 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- این اپ کاملاً آفلاین است؛ هیچ دسترسی اینترنت یا فضای ذخیره‌سازی لازم ندارد -->
+    <!-- این اپ کاملاً آفلاین است؛ هیچ دسترسی اینترنتی لازم ندارد.
+         این یکی فقط برای ذخیره در گالری روی اندروید ۹ و پایین‌تر لازم است
+         (از اندروید ۱۰ به بعد نیازی به این مجوز نیست). -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
 
     <application
         android:allowBackup="true"

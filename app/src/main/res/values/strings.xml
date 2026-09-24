@@ -14,4 +14,15 @@
     <string name="error_generic">پردازش با خطا مواجه شد. لطفاً دوباره تلاش کنید.</string>
     <string name="result_dims">ابعاد خروجی: %1$d × %2$d پیکسل</string>
     <string name="scaled_down_notice">توجه: برای جلوگیری از کمبود حافظه‌ی گوشی شما، ابعاد خروجی کمی کوچک‌تر از اندازه‌ی اصلی شد.</string>
+    <string name="welcome_title">درود 👋</string>
+    <string name="welcome_subtitle">بزن بریم برای تفکیک نقشه</string>
+    <string name="info_title">درباره‌ی این اپلیکیشن</string>
+    <string name="info_body">سازنده: حسن مهرزاد\n\nارتباط با ما: پیج اینستاگرام آسمان استهبان\n@asemanestahban</string>
+    <string name="open_instagram">مشاهده صفحه اینستاگرام</string>
+    <string name="save_gallery">ذخیره در گالری</string>
+    <string name="share_as_photo">اشتراک‌گذاری به‌صورت عکس</string>
+    <string name="share_as_file">اشتراک‌گذاری به‌صورت فایل (کیفیت اصلی)</string>
+    <string name="saved_to_gallery">با موفقیت در گالری ذخیره شد.</string>
+    <string name="save_failed">ذخیره در گالری ناموفق بود.</string>
+    <string name="permission_needed">برای ذخیره در گالری، دسترسی لازم است.</string>
 </resources>

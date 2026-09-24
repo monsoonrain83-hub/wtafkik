@@ -23,7 +23,11 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // مبهم‌سازی کد (R8) و حذف منابع بلااستفاده برای سخت‌تر شدن مهندسی معکوس
+            isMinifyEnabled = true
+            isShrinkResources = true
+            // برای اینکه APK ریلیز مستقیم قابل نصب باشد (بعداً با کلید اختصاصی خودتان جایگزین کنید)
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
