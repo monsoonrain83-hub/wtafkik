@@ -1,6 +1,8 @@
 package ir.wtafkik.mapoverlay
 
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
 import android.view.View
@@ -119,15 +121,17 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             try {
-                val result = withContext(Dispatchers.IO) {
+                val (result, preview) = withContext(Dispatchers.IO) {
                     val outDir = File(getExternalFilesDir(null), "outputs").apply { mkdirs() }
                     val stamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
                     val outFile = File(outDir, "map_${stamp}.jpg")
-                    OverlayEngine.process(this@MainActivity, uri, zoom.assetFile, outFile)
+                    val r = OverlayEngine.process(this@MainActivity, uri, zoom.assetFile, outFile)
+                    val thumb = decodeThumbnail(r.outputFile, 1024)
+                    r to thumb
                 }
                 lastResult = result
-                showResult(result)
-            } catch (e: Exception) {
+                showResult(result, preview)
+            } catch (e: Throwable) {
                 val details = android.util.Log.getStackTraceString(e)
                 androidx.appcompat.app.AlertDialog.Builder(this@MainActivity)
                     .setTitle("جزئیات خطا (اسکرین‌شات بگیرید و بفرستید)")
@@ -140,11 +144,24 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ---------------- مرحله ۴: نتیجه ----------------
-    private fun showResult(result: OverlayEngine.Result) {
-        binding.previewImage.setImageURI(Uri.fromFile(result.outputFile))
+    private fun showResult(result: OverlayEngine.Result, preview: Bitmap) {
+        binding.previewImage.setImageBitmap(preview)
         binding.resultDimsText.text = getString(R.string.result_dims, result.finalWidth, result.finalHeight)
         binding.scaledDownNotice.visibility = if (result.wasScaledDown) View.VISIBLE else View.GONE
         showOnly(binding.resultContainer)
+    }
+
+    /** یک نسخه‌ی کوچک‌شده برای نمایش پیش‌نمایش می‌سازد؛ هیچ‌وقت تصویر کامل را دیکد نمی‌کند تا از OutOfMemory جلوگیری شود */
+    private fun decodeThumbnail(file: File, maxDim: Int): Bitmap {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.absolutePath, bounds)
+        var sample = 1
+        while (bounds.outWidth / (sample * 2) >= maxDim && bounds.outHeight / (sample * 2) >= maxDim) {
+            sample *= 2
+        }
+        val opts = BitmapFactory.Options().apply { inSampleSize = sample }
+        return BitmapFactory.decodeFile(file.absolutePath, opts)
+            ?: throw IllegalStateException("ساخت پیش‌نمایش تصویر ممکن نشد.")
     }
 
     private fun shareResult() {
