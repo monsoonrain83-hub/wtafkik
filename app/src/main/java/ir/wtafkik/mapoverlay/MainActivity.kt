@@ -118,7 +118,12 @@ class MainActivity : AppCompatActivity() {
                 lastResult = result
                 showResult(result)
             } catch (e: Exception) {
-                Toast.makeText(this@MainActivity, getString(R.string.error_generic), Toast.LENGTH_LONG).show()
+                val details = android.util.Log.getStackTraceString(e)
+                androidx.appcompat.app.AlertDialog.Builder(this@MainActivity)
+                    .setTitle("جزئیات خطا (اسکرین‌شات بگیرید و بفرستید)")
+                    .setMessage(details)
+                    .setPositiveButton("باشه", null)
+                    .show()
                 showProcessingScreen()
             }
         }
