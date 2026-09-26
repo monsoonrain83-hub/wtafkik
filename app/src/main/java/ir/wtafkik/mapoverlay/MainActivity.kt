@@ -50,6 +50,11 @@ class MainActivity : AppCompatActivity() {
             if (uri != null) startProcessing(uri)
         }
 
+    private val pickBatchLauncher =
+        registerForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris: List<Uri> ->
+            if (uris.isNotEmpty()) startBatchProcessing(uris)
+        }
+
     private val requestStoragePermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             val file = pendingSaveFile
@@ -81,6 +86,7 @@ class MainActivity : AppCompatActivity() {
 
         binding.pickImageButton.setOnClickListener { pickImageLauncher.launch("image/*") }
         binding.pickFileButton.setOnClickListener { pickFileLauncher.launch(arrayOf("image/*")) }
+        binding.pickBatchButton.setOnClickListener { pickBatchLauncher.launch("image/*") }
         binding.backFromZoomButton.setOnClickListener { showZoomMenu() }
         binding.backFromResultButton.setOnClickListener { showZoomMenu() }
         binding.newImageButton.setOnClickListener { showProcessingScreen() }
@@ -115,13 +121,61 @@ class MainActivity : AppCompatActivity() {
     private fun buildZoomMenu(group: SiteGroup) {
         binding.zoomContainer.removeAllViews()
         binding.zoomContainer.addView(makeSectionTitle(group.title))
-        for (item in group.items) {
-            binding.zoomContainer.addView(makeMenuButton(item.label) {
-                selectedZoom = item
-                showProcessingScreen()
+
+        // چیدمان فشرده و دوستونه تا در بیشتر گوشی‌ها همه‌ی گزینه‌ها بدون اسکرول جا شوند
+        var row: LinearLayout? = null
+        for ((index, item) in group.items.withIndex()) {
+            if (index % 2 == 0) {
+                row = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply { bottomMargin = (8 * resources.displayMetrics.density).toInt() }
+                }
+                binding.zoomContainer.addView(row)
+            }
+            row?.addView(makeCompactZoomButton(item))
+        }
+        // اگر تعداد گزینه‌ها فرد بود، جای خالی ستون دوم آخرین ردیف را پر کن
+        if (group.items.size % 2 == 1) {
+            row?.addView(View(this).apply {
+                layoutParams = LinearLayout.LayoutParams(0, 0, 1f)
             })
         }
+
         binding.zoomContainer.addView(makeMenuButton(getString(R.string.back)) { buildSiteMenu() })
+    }
+
+    private fun makeCompactZoomButton(item: ZoomItem): MaterialButton {
+        return MaterialButton(this).apply {
+            text = item.label
+            isAllCaps = false
+            textSize = 12.5f
+            minHeight = (46 * resources.displayMetrics.density).toInt()
+            minWidth = 0
+            insetTop = 0
+            insetBottom = 0
+            setPadding(
+                (10 * resources.displayMetrics.density).toInt(), (6 * resources.displayMetrics.density).toInt(),
+                (10 * resources.displayMetrics.density).toInt(), (6 * resources.displayMetrics.density).toInt()
+            )
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                marginStart = (4 * resources.displayMetrics.density).toInt()
+                marginEnd = (4 * resources.displayMetrics.density).toInt()
+            }
+            if (item.enabled) {
+                alpha = 1f
+                setOnClickListener {
+                    selectedZoom = item
+                    showProcessingScreen()
+                }
+            } else {
+                alpha = 0.45f
+                isClickable = false
+                isFocusable = false
+            }
+        }
     }
 
     // ---------------- مرحله ۳: انتخاب تصویر / پردازش ----------------
@@ -129,8 +183,10 @@ class MainActivity : AppCompatActivity() {
         binding.selectedZoomText.text = selectedZoom?.label ?: ""
         binding.progressBar.visibility = View.GONE
         binding.processingText.visibility = View.GONE
+        binding.processingText.text = getString(R.string.processing)
         binding.pickImageButton.visibility = View.VISIBLE
         binding.pickFileButton.visibility = View.VISIBLE
+        binding.pickBatchButton.visibility = View.VISIBLE
         binding.backFromZoomButton.visibility = View.VISIBLE
         showOnly(binding.processingContainer)
     }
@@ -139,6 +195,7 @@ class MainActivity : AppCompatActivity() {
         val zoom = selectedZoom ?: return
         binding.pickImageButton.visibility = View.GONE
         binding.pickFileButton.visibility = View.GONE
+        binding.pickBatchButton.visibility = View.GONE
         binding.backFromZoomButton.visibility = View.GONE
         binding.progressBar.visibility = View.VISIBLE
         binding.processingText.visibility = View.VISIBLE
@@ -165,6 +222,60 @@ class MainActivity : AppCompatActivity() {
                 showProcessingScreen()
             }
         }
+    }
+
+    // ---------------- پردازش گروهی چند نقشه ----------------
+    /**
+     * هر تصویر ورودی، صرف‌نظر از ابعادش، در OverlayEngine به‌طور خودکار به اندازه‌ی
+     * نقشه‌ی پایه‌ی همان زوم کشیده می‌شود؛ پس نیازی نیست کاربر مطمئن شود همه‌ی
+     * فایل‌ها دقیقاً یک اندازه‌اند، فقط باید همه برای همین یک زوم انتخابی باشند.
+     */
+    private fun startBatchProcessing(uris: List<Uri>) {
+        val zoom = selectedZoom ?: return
+        binding.pickImageButton.visibility = View.GONE
+        binding.pickFileButton.visibility = View.GONE
+        binding.pickBatchButton.visibility = View.GONE
+        binding.backFromZoomButton.visibility = View.GONE
+        binding.progressBar.visibility = View.VISIBLE
+        binding.processingText.visibility = View.VISIBLE
+
+        lifecycleScope.launch {
+            var success = 0
+            var failed = 0
+            val outDir = File(getExternalFilesDir(null), "outputs").apply { mkdirs() }
+
+            for ((index, uri) in uris.withIndex()) {
+                binding.processingText.text = getString(R.string.batch_progress, index + 1, uris.size)
+                try {
+                    val outFile = withContext(Dispatchers.IO) {
+                        val stamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+                        val f = File(outDir, "map_${stamp}_${index + 1}.jpg")
+                        OverlayEngine.process(this@MainActivity, uri, zoom.assetFile, f)
+                        f
+                    }
+                    val saved = withContext(Dispatchers.IO) { saveFileToGalleryQuiet(outFile) }
+                    if (saved) success++ else failed++
+                } catch (e: Throwable) {
+                    failed++
+                }
+            }
+
+            showBatchSummary(success, failed)
+        }
+    }
+
+    private fun showBatchSummary(success: Int, failed: Int) {
+        val message = if (failed == 0) {
+            getString(R.string.batch_done_success_only, success)
+        } else {
+            getString(R.string.batch_done_with_fail, success, failed)
+        }
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.batch_done_title))
+            .setMessage(message)
+            .setPositiveButton("باشه", null)
+            .show()
+        showProcessingScreen()
     }
 
     // ---------------- مرحله ۴: نتیجه ----------------
@@ -236,25 +347,53 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun saveViaMediaStore(file: File) {
-        try {
+        val ok = saveViaMediaStoreQuiet(file)
+        val message = if (ok) R.string.saved_to_gallery else R.string.save_failed
+        Toast.makeText(this, getString(message), Toast.LENGTH_LONG).show()
+    }
+
+    private fun saveLegacy(file: File) {
+        val ok = saveLegacyQuiet(file)
+        val message = if (ok) R.string.saved_to_gallery else R.string.save_failed
+        Toast.makeText(this, getString(message), Toast.LENGTH_LONG).show()
+    }
+
+    /** نسخه‌ی بی‌صدا (بدون Toast) برای استفاده در حلقه‌ی پردازش گروهی؛ true یعنی موفق بود. */
+    private fun saveFileToGalleryQuiet(file: File): Boolean {
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                saveViaMediaStoreQuiet(file)
+            } else if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                == PackageManager.PERMISSION_GRANTED
+            ) {
+                saveLegacyQuiet(file)
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    private fun saveViaMediaStoreQuiet(file: File): Boolean {
+        return try {
             val values = ContentValues().apply {
                 put(MediaStore.Images.Media.DISPLAY_NAME, file.name)
                 put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
                 put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/MapOverlay")
             }
             val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-                ?: throw IllegalStateException("ساخت رکورد گالری ناموفق بود.")
-            val out = contentResolver.openOutputStream(uri)
-                ?: throw IllegalStateException("نوشتن فایل در گالری ناموفق بود.")
+                ?: return false
+            val out = contentResolver.openOutputStream(uri) ?: return false
             out.use { stream -> file.inputStream().use { it.copyTo(stream) } }
-            Toast.makeText(this, getString(R.string.saved_to_gallery), Toast.LENGTH_LONG).show()
+            true
         } catch (e: Exception) {
-            Toast.makeText(this, getString(R.string.save_failed), Toast.LENGTH_LONG).show()
+            false
         }
     }
 
-    private fun saveLegacy(file: File) {
-        try {
+    private fun saveLegacyQuiet(file: File): Boolean {
+        return try {
             @Suppress("DEPRECATION")
             val picturesDir = File(
                 Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
@@ -266,9 +405,9 @@ class MainActivity : AppCompatActivity() {
             android.media.MediaScannerConnection.scanFile(
                 this, arrayOf(dest.absolutePath), arrayOf("image/jpeg"), null
             )
-            Toast.makeText(this, getString(R.string.saved_to_gallery), Toast.LENGTH_LONG).show()
+            true
         } catch (e: Exception) {
-            Toast.makeText(this, getString(R.string.save_failed), Toast.LENGTH_LONG).show()
+            false
         }
     }
 
@@ -311,7 +450,8 @@ class MainActivity : AppCompatActivity() {
         binding.logoWu.visibility = if (showWu) View.VISIBLE else View.GONE
         binding.logoAseman.visibility = if (showWb || showWu) View.VISIBLE else View.GONE
 
-        val showSamples = current !== binding.resultContainer && (showWb || showWu)
+        // نمونه‌کارها فقط در صفحه‌ی اصلی نشان داده می‌شوند تا صفحه‌ی انتخاب زوم فشرده بماند
+        val showSamples = isHome
         binding.sampleSection.visibility = if (showSamples) View.VISIBLE else View.GONE
         binding.sampleTitle.visibility = if (isHome) View.VISIBLE else View.GONE
         binding.sampleWb.visibility = if (showSamples && showWb) View.VISIBLE else View.GONE
@@ -327,9 +467,9 @@ class MainActivity : AppCompatActivity() {
     private fun makeSectionTitle(text: String): TextView {
         return TextView(this).apply {
             this.text = text
-            textSize = 15f
+            textSize = 13f
             setTextColor(getColor(R.color.text_primary))
-            setPadding(0, 0, 0, 20)
+            setPadding(0, 0, 0, (10 * resources.displayMetrics.density).toInt())
         }
     }
 

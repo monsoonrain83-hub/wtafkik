@@ -3,7 +3,7 @@ package ir.wtafkik.mapoverlay
 /**
  * یک گزینه‌ی زوم: برچسب فارسی + نام فایل PNG پایه داخل assets/base/
  */
-data class ZoomItem(val label: String, val assetFile: String)
+data class ZoomItem(val label: String, val assetFile: String, val enabled: Boolean = true)
 
 data class SiteGroup(val title: String, val items: List<ZoomItem>)
 
@@ -14,6 +14,7 @@ object MenuData {
         items = listOf(
             ZoomItem("زوم ایران (استانی)", "iran_ostan.png"),
             ZoomItem("زوم ایران (شهرستانی)", "iran_shahrestan.png"),
+            ZoomItem("راه‌های ایران (به زودی)", "", enabled = false),
         )
     )
 
@@ -33,6 +34,7 @@ object MenuData {
             ZoomItem("تهران، قم، البرز، قزوین، غرب سمنان، مرکز و غرب مازندران، شرق استان مرکزی", "tehran.png"),
             ZoomItem("گیلان", "gilan.png"),
             ZoomItem("هرمزگان", "hormozgan.png"),
+            ZoomItem("راه‌های ایران (به زودی)", "", enabled = false),
         )
     )
 }
